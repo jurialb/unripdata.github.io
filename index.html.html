@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Player‑Barometer · VGI Explorer · v4 Gold (demo)</title>
+  <style>
+    :root{
+      /* Color‑blind friendly palette from v3 (WCAG≈AA) */
+      --bg:#0b0f14; --panel:#121821; --ink:#ecf2ff; --muted:#9ab0c8; --line:rgba(255,255,255,.12);
+      --accent:#19e0d0; --accent2:#6aa6ff; --pos:#1ec997; --neg:#ff8a5b; --pill:#0f2532;
+      --r:16px; --shadow:0 12px 36px rgba(0,0,0,.35); --grid:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b0f14,#0e1520);color:var(--ink);font:500 14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;letter-spacing:.1px}
+    a{color:var(--accent)}
+    .wrap{max-width:1180px;margin:calc(var(--grid)*2) auto;padding:0 calc(var(--grid)*1.25)}
+
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--grid)}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:36px;height:36px;border-radius:10px;background:radial-gradient(60% 60% at 30% 30%,var(--accent),#0df);box-shadow:var(--shadow)}
+    h1{margin:0;font-size:20px}
+    .sub{color:var(--muted);font-size:13px}
+
+    .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:var(--grid);box-shadow:var(--shadow)}
+
+    .btn{border:1px solid var(--line);background:#0f2532;color:var(--ink);padding:8px 12px;border-radius:999px;cursor:pointer}
+    .btn:hover{filter:brightness(1.08)}
+    .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+    .seg button{background:#0f1823;border:0;color:#cfe2ff;padding:8px 12px;cursor:pointer}
+    .seg button[aria-checked="true"], .seg button[aria-pressed="true"]{background:var(--accent);color:#062026;font-weight:800}
+
+    .select{appearance:none;background:#0f1823;border:1px solid var(--line);border-radius:10px;color:#cfe2ff;padding:8px 12px;cursor:pointer}
+
+    .grid{display:grid;gap:var(--grid)}
+    .g2{grid-template-columns:2fr 1fr}
+    @media (max-width:1100px){.g2{grid-template-columns:1fr}}
+
+    /* Chart */
+    .chartWrap{position:relative}
+    svg.chart{width:100%;height:380px;display:block;transition:filter .2s ease}
+    .axis text{fill:#cfe2ff;font-size:12px}
+    .axis line,.axis path{stroke:rgba(255,255,255,.18)}
+    .barA{fill:url(#gradBarA)}
+    .barB{fill:url(#gradBarB)}
+    .label{fill:#ecf2ff;font-size:12px}
+    .kpi{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:var(--pill);color:#cfe2ff;font-size:12px}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px 6px;border-bottom:1px dashed var(--line);text-align:left;vertical-align:middle}
+    th{color:#cfe2ff;font-weight:800}
+    .num{text-align:right}
+
+    .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+
+    /* Focus states for keyboard users */
+    :is(button, select, .btn):focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+
+    footer{color:var(--muted);font-size:12px;margin:var(--grid) 0}
+  </style>
+</head>
+<body>
+  <!-- Hidden SVG filters for color‑blind simulation -->
+  <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <filter id="cvd-prot" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0.56667 0.43333 0       0 0  0.55833 0.44167 0       0 0  0       0.24167 0.75833 0 0  0 0 0 1 0"/>
+    </filter>
+    <filter id="cvd-deut" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0.625    0.375    0      0 0  0.7      0.3      0      0 0  0        0.3      0.7    0 0  0 0 0 1 0"/>
+    </filter>
+    <filter id="cvd-trit" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0.95     0.05     0      0 0  0        0.43333  0.56667 0 0  0        0.475    0.525  0 0  0 0 0 1 0"/>
+    </filter>
+  </svg>
+
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Player‑Barometer · VGI Explorer (v4 Gold)</h1>
+          <div class="sub">Quarterly data (demo). Colors & style match Barometer v3. Uncertainty ≈ ±2–3 pp (sampling/weights).</div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="seg" id="colorSeg" role="radiogroup" aria-label="Color vision modes">
+          <button role="radio" aria-checked="true" data-cvd="none">Normal</button>
+          <button role="radio" aria-checked="false" data-cvd="prot">Protanopia</button>
+          <button role="radio" aria-checked="false" data-cvd="deut">Deuteranopia</button>
+          <button role="radio" aria-checked="false" data-cvd="trit">Tritanopia</button>
+        </div>
+        <button class="btn" id="btnExportSVG">Export SVG</button>
+        <button class="btn" id="btnExportPNG">Export PNG</button>
+        <button class="btn" id="btnPrint" onclick="window.print()">Print / PDF</button>
+      </div>
+    </header>
+
+    <section class="card" aria-labelledby="chartTitle">
+      <h2 id="chartTitle" style="margin:0 0 8px">Quarterly comparison</h2>
+      <div class="controls" style="margin-bottom:12px">
+        <div class="seg" id="modeSeg" role="radiogroup" aria-label="Comparison mode">
+          <button role="radio" aria-checked="true" data-mode="single">Single</button>
+          <button role="radio" aria-checked="false" data-mode="compare">A vs B</button>
+        </div>
+        <div class="seg" id="qSegSingle" role="radiogroup" aria-label="Select quarter (single)">
+          <!-- single‑quarter buttons inserted by script -->
+        </div>
+        <div id="qAB" style="display:none;gap:10px;align-items:center">
+          <label>Quarter A
+            <select id="qA" class="select" aria-label="Quarter A"></select>
+          </label>
+          <label>Quarter B
+            <select id="qB" class="select" aria-label="Quarter B"></select>
+          </label>
+        </div>
+        <label>Metric
+          <select id="metric" class="select" aria-label="Metric">
+            <option value="EstRevenue">Est. revenue (€)</option>
+            <option value="EstUnits">Est. units sold</option>
+            <option value="Followers">Followers</option>
+            <option value="Reviews">Reviews</option>
+            <option value="AvgPlaytime">Avg. Playtime (hrs)</option>
+            <option value="Price">Price (€)</option>
+          </select>
+        </label>
+        <label>Group by
+          <select id="groupBy" class="select" aria-label="Group by">
+            <option value="Genre" selected>Genre</option>
+            <option value="Publisher">Publisher</option>
+            <option value="PublisherClass">Publisher Class</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid g2">
+        <div class="chartWrap">
+          <svg class="chart" viewBox="0 0 820 380" role="img" aria-describedby="chartDesc">
+            <desc id="chartDesc">Horizontal bar chart. In compare mode, bar A is the main 20px bar; bar B is the 12px bar below. Labels show totals and deltas.</desc>
+            <defs>
+              <linearGradient id="gradBarA" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stop-color="#19e0d0"/>
+                <stop offset="100%" stop-color="#00e2ff"/>
+              </linearGradient>
+              <linearGradient id="gradBarB" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stop-color="#6aa6ff"/>
+                <stop offset="100%" stop-color="#9ec8ff"/>
+              </linearGradient>
+              <clipPath id="clipChart"><rect x="120" y="24" width="680" height="310" rx="8"/></clipPath>
+            </defs>
+            <g class="axis x"></g>
+            <g class="axis y"></g>
+            <g class="bars" clip-path="url(#clipChart)"></g>
+            <g class="labels"></g>
+          </svg>
+          <div class="kpi" id="kpiRow" aria-live="polite"></div>
+          <div class="controls" style="margin-top:10px">
+            <button class="btn" id="btnToggleTable" aria-expanded="false" aria-controls="dataTableWrap">Show data table</button>
+            <span class="pill" title="Sampling/weighting uncertainty">Uncertainty: approx. ±2–3 pp</span>
+          </div>
+          <!-- Accessible data table (hidden by default) -->
+          <div id="dataTableWrap" class="visually-hidden" aria-hidden="true">
+            <h3>Underlying grouped values</h3>
+            <table id="accessibleTable">
+              <thead><tr><th>Group</th><th class="num">Value (A)</th><th class="num">Value (B)</th><th class="num">Δ (A−B)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="margin:0 0 6px">Top games in selected quarter</h3>
+          <table id="topTable" aria-label="Top games by metric">
+            <thead><tr><th>Game</th><th>Genre</th><th>Publisher</th><th class="num">Value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="sub" id="footMeta" style="margin-top:8px"></p>
+        </div>
+      </div>
+    </section>
+
+    <footer>VGI fields: Name, First released, Price, Est. revenue, Est. units sold, Reviews, Followers, Avg. Playtime, Genre, Publisher, Median revenue per game; Extra: Steam tag, Publisher Class, Languages, Rating. (demo set)</footer>
+  </div>
+
+<script>
+// ======== DEMO DATA (4 quarters) ========
+const QTRS = ["2024‑Q4","2025‑Q1","2025‑Q2","2025‑Q3"]; // latest is last
+const DATA = {
+  "2024‑Q4": [
+    {Name:"StarForge", FirstReleased:"2024‑10‑12", Price:29.99, EstRevenue:2_100_000, EstUnits:95_000, Reviews:6200, Followers:42000, AvgPlaytime:24, Genre:"RPG", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","DE","RU"], Rating:83, SteamTag:["Open World","Crafting"]},
+    {Name:"Neon Streets", FirstReleased:"2024‑11‑05", Price:24.99, EstRevenue:1_250_000, EstUnits:58_000, Reviews:3100, Followers:28000, AvgPlaytime:12, Genre:"Action‑Adventure", Publisher:"BlueCircuit", PublisherClass:"AA", Languages:["EN","FR","RU"], Rating:78, SteamTag:["Stealth","Story Rich"]},
+    {Name:"Drift Kings", FirstReleased:"2024‑09‑20", Price:39.99, EstRevenue:3_850_000, EstUnits:110_000, Reviews:8900, Followers:51000, AvgPlaytime:18, Genre:"Racing", Publisher:"VectorLine", PublisherClass:"AA", Languages:["EN","ES","RU"], Rating:81, SteamTag:["Sim","Multiplayer"]},
+    {Name:"Colony‑13", FirstReleased:"2024‑08‑14", Price:19.99, EstRevenue:980_000, EstUnits:62_000, Reviews:2700, Followers:19000, AvgPlaytime:22, Genre:"Survival", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","RU"], Rating:76, SteamTag:["Base‑Building"]},
+    {Name:"Mind Tactician", FirstReleased:"2024‑07‑01", Price:29.99, EstRevenue:1_600_000, EstUnits:54_000, Reviews:4200, Followers:22000, AvgPlaytime:28, Genre:"Strategy", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","DE","JP"], Rating:85, SteamTag:["4X","Turn‑Based"]},
+    {Name:"Pixel Smith", FirstReleased:"2024‑10‑30", Price:14.99, EstRevenue:420_000, EstUnits:28_000, Reviews:1200, Followers:8000, AvgPlaytime:9, Genre:"Indie", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU"], Rating:73, SteamTag:["Pixel Art"]},
+    {Name:"Airborne 2049", FirstReleased:"2024‑09‑01", Price:49.99, EstRevenue:4_600_000, EstUnits:92_000, Reviews:10100, Followers:62000, AvgPlaytime:31, Genre:"Shooter", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","RU","PL"], Rating:80, SteamTag:["Co‑op","PVP"]},
+    {Name:"Farm&Chill", FirstReleased:"2024‑08‑08", Price:19.99, EstRevenue:1_150_000, EstUnits:58_000, Reviews:2600, Followers:17000, AvgPlaytime:16, Genre:"Simulation", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU","DE"], Rating:79, SteamTag:["Relaxing"]},
+  ],
+  "2025‑Q1": [
+    {Name:"StarForge", FirstReleased:"2024‑10‑12", Price:27.99, EstRevenue:2_600_000, EstUnits:120_000, Reviews:8400, Followers:47000, AvgPlaytime:26, Genre:"RPG", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","DE","RU"], Rating:84, SteamTag:["Open World","Crafting"]},
+    {Name:"Neon Streets", FirstReleased:"2024‑11‑05", Price:22.99, EstRevenue:1_020_000, EstUnits:50_000, Reviews:3900, Followers:31000, AvgPlaytime:13, Genre:"Action‑Adventure", Publisher:"BlueCircuit", PublisherClass:"AA", Languages:["EN","FR","RU"], Rating:78, SteamTag:["Stealth","Story Rich"]},
+    {Name:"Drift Kings", FirstReleased:"2024‑09‑20", Price:37.99, EstRevenue:3_100_000, EstUnits:96_000, Reviews:9500, Followers:56000, AvgPlaytime:19, Genre:"Racing", Publisher:"VectorLine", PublisherClass:"AA", Languages:["EN","ES","RU"], Rating:82, SteamTag:["Sim","Multiplayer"]},
+    {Name:"Colony‑13", FirstReleased:"2024‑08‑14", Price:19.99, EstRevenue:1_300_000, EstUnits:77_000, Reviews:3300, Followers:21000, AvgPlaytime:23, Genre:"Survival", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","RU"], Rating:77, SteamTag:["Base‑Building"]},
+    {Name:"Mind Tactician", FirstReleased:"2024‑07‑01", Price:29.99, EstRevenue:1_750_000, EstUnits:58_000, Reviews:4800, Followers:25000, AvgPlaytime:29, Genre:"Strategy", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","DE","JP"], Rating:85, SteamTag:["4X","Turn‑Based"]},
+    {Name:"Pixel Smith", FirstReleased:"2024‑10‑30", Price:12.99, EstRevenue:520_000, EstUnits:40_000, Reviews:1800, Followers:11000, AvgPlaytime:10, Genre:"Indie", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU"], Rating:75, SteamTag:["Pixel Art"]},
+    {Name:"Airborne 2049", FirstReleased:"2024‑09‑01", Price:49.99, EstRevenue:4_200_000, EstUnits:84_000, Reviews:11000, Followers:65000, AvgPlaytime:33, Genre:"Shooter", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","RU","PL"], Rating:81, SteamTag:["Co‑op","PVP"]},
+    {Name:"Farm&Chill", FirstReleased:"2024‑08‑08", Price:19.99, EstRevenue:1_280_000, EstUnits:65_000, Reviews:3300, Followers:20000, AvgPlaytime:17, Genre:"Simulation", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU","DE"], Rating:80, SteamTag:["Relaxing"]},
+  ],
+  "2025‑Q2": [
+    {Name:"StarForge", FirstReleased:"2024‑10‑12", Price:27.99, EstRevenue:2_900_000, EstUnits:132_000, Reviews:9800, Followers:52000, AvgPlaytime:27, Genre:"RPG", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","DE","RU"], Rating:84, SteamTag:["Open World","Crafting"]},
+    {Name:"Neon Streets", FirstReleased:"2024‑11‑05", Price:21.99, EstRevenue:1_180_000, EstUnits:57_000, Reviews:4200, Followers:33000, AvgPlaytime:13, Genre:"Action‑Adventure", Publisher:"BlueCircuit", PublisherClass:"AA", Languages:["EN","FR","RU"], Rating:79, SteamTag:["Stealth","Story Rich"]},
+    {Name:"Drift Kings", FirstReleased:"2024‑09‑20", Price:37.99, EstRevenue:3_400_000, EstUnits:104_000, Reviews:10000, Followers:59000, AvgPlaytime:20, Genre:"Racing", Publisher:"VectorLine", PublisherClass:"AA", Languages:["EN","ES","RU"], Rating:83, SteamTag:["Sim","Multiplayer"]},
+    {Name:"Colony‑13", FirstReleased:"2024‑08‑14", Price:19.99, EstRevenue:1_450_000, EstUnits:84_000, Reviews:3800, Followers:23000, AvgPlaytime:24, Genre:"Survival", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","RU"], Rating:78, SteamTag:["Base‑Building"]},
+    {Name:"Mind Tactician", FirstReleased:"2024‑07‑01", Price:29.99, EstRevenue:1_920_000, EstUnits:63_000, Reviews:5400, Followers:27000, AvgPlaytime:30, Genre:"Strategy", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","DE","JP"], Rating:86, SteamTag:["4X","Turn‑Based"]},
+    {Name:"Pixel Smith", FirstReleased:"2024‑10‑30", Price:12.99, EstRevenue:610_000, EstUnits:48_000, Reviews:2100, Followers:13000, AvgPlaytime:10, Genre:"Indie", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU"], Rating:76, SteamTag:["Pixel Art"]},
+    {Name:"Airborne 2049", FirstReleased:"2024‑09‑01", Price:49.99, EstRevenue:4_450_000, EstUnits:89_000, Reviews:12000, Followers:70000, AvgPlaytime:34, Genre:"Shooter", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","RU","PL"], Rating:82, SteamTag:["Co‑op","PVP"]},
+    {Name:"Farm&Chill", FirstReleased:"2024‑08‑08", Price:19.99, EstRevenue:1_330_000, EstUnits:67_000, Reviews:3600, Followers:22000, AvgPlaytime:18, Genre:"Simulation", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU","DE"], Rating:80, SteamTag:["Relaxing"]},
+  ],
+  "2025‑Q3": [
+    {Name:"StarForge", FirstReleased:"2024‑10‑12", Price:27.99, EstRevenue:3_300_000, EstUnits:145_000, Reviews:11200, Followers:56000, AvgPlaytime:28, Genre:"RPG", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","DE","RU"], Rating:85, SteamTag:["Open World","Crafting"]},
+    {Name:"Neon Streets", FirstReleased:"2024‑11‑05", Price:21.99, EstRevenue:1_050_000, EstUnits:52_000, Reviews:4500, Followers:35000, AvgPlaytime:12, Genre:"Action‑Adventure", Publisher:"BlueCircuit", PublisherClass:"AA", Languages:["EN","FR","RU"], Rating:79, SteamTag:["Stealth","Story Rich"]},
+    {Name:"Drift Kings", FirstReleased:"2024‑09‑20", Price:37.99, EstRevenue:3_600_000, EstUnits:108_000, Reviews:12700, Followers:63000, AvgPlaytime:21, Genre:"Racing", Publisher:"VectorLine", PublisherClass:"AA", Languages:["EN","ES","RU"], Rating:84, SteamTag:["Sim","Multiplayer"]},
+    {Name:"Colony‑13", FirstReleased:"2024‑08‑14", Price:19.99, EstRevenue:1_520_000, EstUnits:88_000, Reviews:4300, Followers:25000, AvgPlaytime:24, Genre:"Survival", Publisher:"NebulaWorks", PublisherClass:"Indie", Languages:["EN","RU"], Rating:78, SteamTag:["Base‑Building"]},
+    {Name:"Mind Tactician", FirstReleased:"2024‑07‑01", Price:29.99, EstRevenue:1_980_000, EstUnits:65_000, Reviews:5800, Followers:29000, AvgPlaytime:30, Genre:"Strategy", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","DE","JP"], Rating:86, SteamTag:["4X","Turn‑Based"]},
+    {Name:"Pixel Smith", FirstReleased:"2024‑10‑30", Price:12.99, EstRevenue:670_000, EstUnits:53_000, Reviews:2400, Followers:15000, AvgPlaytime:11, Genre:"Indie", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU"], Rating:77, SteamTag:["Pixel Art"]},
+    {Name:"Airborne 2049", FirstReleased:"2024‑09‑01", Price:49.99, EstRevenue:4_700_000, EstUnits:94_000, Reviews:13500, Followers:76000, AvgPlaytime:35, Genre:"Shooter", Publisher:"GrandGrid", PublisherClass:"AAA", Languages:["EN","RU","PL"], Rating:83, SteamTag:["Co‑op","PVP"]},
+    {Name:"Farm&Chill", FirstReleased:"2024‑08‑08", Price:19.99, EstRevenue:1_400_000, EstUnits:70_000, Reviews:3900, Followers:24000, AvgPlaytime:18, Genre:"Simulation", Publisher:"TinyCave", PublisherClass:"Indie", Languages:["EN","RU","DE"], Rating:81, SteamTag:["Relaxing"]},
+  ]
+};
+
+// ======== UTILS ========
+const fmt = {
+  num:n=>n.toLocaleString('en-US'),
+  fullEur:n=>'€'+n.toLocaleString('en-US'),
+};
+function groupBy(arr, key){
+  const m = new Map();
+  for(const it of arr){ const k = it[key]; const v = m.get(k)||[]; v.push(it); m.set(k,v); }
+  return m;
+}
+function sum(arr, field){ return arr.reduce((a,b)=>a+(+b[field]||0),0); }
+function median(values){ if(!values.length) return 0; const a=[...values].sort((x,y)=>x-y); const mid=Math.floor(a.length/2); return a.length%2? a[mid] : (a[mid-1]+a[mid])/2; }
+
+// ======== CONTROLS ========
+const modeSeg = document.getElementById('modeSeg');
+let mode = 'single';
+modeSeg.addEventListener('click',(e)=>{ const b=e.target.closest('button[role="radio"]'); if(!b) return; mode=b.dataset.mode; setChecked(modeSeg,b); update(); });
+modeSeg.addEventListener('keydown',(e)=>arrowRadio(e,modeSeg));
+
+const qSegSingle = document.getElementById('qSegSingle');
+let qIndex = QTRS.length-1; // current quarter — last
+for(let i=0;i<QTRS.length;i++){
+  const b=document.createElement('button'); b.textContent=QTRS[i]; b.type='button'; b.dataset.idx=i; b.setAttribute('role','radio'); b.setAttribute('aria-checked', String(i===qIndex));
+  b.addEventListener('click',()=>{ qIndex=i; setChecked(qSegSingle,b); update(); });
+  qSegSingle.appendChild(b);
+}
+qSegSingle.addEventListener('keydown',(e)=>arrowRadio(e,qSegSingle));
+
+const qAB = document.getElementById('qAB'); const qA=document.getElementById('qA'); const qB=document.getElementById('qB');
+QTRS.forEach((q,i)=>{ qA.add(new Option(q,q)); qB.add(new Option(q,q)); }); qA.value=QTRS[QTRS.length-2]; qB.value=QTRS[QTRS.length-1];
+qA.addEventListener('change',update); qB.addEventListener('change',update);
+
+const metricSel = document.getElementById('metric');
+const groupSel  = document.getElementById('groupBy');
+metricSel.addEventListener('change',update); groupSel.addEventListener('change',update);
+
+const colorSeg = document.getElementById('colorSeg');
+let cvd='none';
+colorSeg.addEventListener('click',(e)=>{ const b=e.target.closest('button[role="radio"]'); if(!b) return; cvd=b.dataset.cvd; setChecked(colorSeg,b); applyCVD(); });
+colorSeg.addEventListener('keydown',(e)=>arrowRadio(e,colorSeg));
+
+// ======== CHART ========
+const svg = document.querySelector('svg.chart');
+const gX = svg.querySelector('.axis.x');
+const gY = svg.querySelector('.axis.y');
+const gBars = svg.querySelector('.bars');
+const gLabels = svg.querySelector('.labels');
+const M = {l:120,t:24,r:20,b:40,w:820,h:380, ih:310, iw:680};
+
+function renderChart(rowsA, rowsB, metric, group){
+  const groupedA = [...groupBy(rowsA, group)].map(([k,v])=>({key:k, val:sum(v, metric)}));
+  const groupedB = rowsB? [...groupBy(rowsB, group)].map(([k,v])=>({key:k, val:sum(v, metric)})) : [];
+  const mapB = new Map(groupedB.map(d=>[d.key,d.val]));
+  const merged = groupedA.map(d=>({key:d.key, a:d.val, b: mapB.get(d.key)||0}));
+  const top = merged.sort((x,y)=> (y.a) - (x.a)).slice(0,7);
+  const maxVal = Math.max(1, ...top.flatMap(d=>[d.a, d.b]));
+
+  const yStep = M.ih / top.length;
+  gY.innerHTML=''; gX.innerHTML=''; gBars.innerHTML=''; gLabels.innerHTML='';
+
+  // Y labels
+  top.forEach((d,i)=>{
+    const y = M.t + i*yStep + yStep/2;
+    const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+    text.setAttribute('x', M.l-8); text.setAttribute('y', y+4); text.setAttribute('class','label'); text.setAttribute('text-anchor','end'); text.textContent = d.key;
+    gY.appendChild(text);
+  });
+  // X grid and max tick label
+  const ticks = 4; for(let i=0;i<=ticks;i++){ const x = M.l + (i/ticks)*M.iw; const t = document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x); t.setAttribute('y', M.t+M.ih+16); t.setAttribute('class','label'); t.setAttribute('text-anchor','middle'); t.textContent = i===ticks? formatVal(maxVal, metric) : '';
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line'); line.setAttribute('x1',x); line.setAttribute('x2',x); line.setAttribute('y1', M.t); line.setAttribute('y2', M.t+M.ih); line.setAttribute('stroke','rgba(255,255,255,.12)'); gX.appendChild(line); gX.appendChild(t);
+  }
+
+  const scale = v => (v/maxVal) * M.iw;
+
+  // Bars A and optional B under it
+  top.forEach((d,i)=>{
+    const y = M.t + i*yStep + yStep/2 - 12; // main bar A height 20
+    const wA = scale(d.a);
+    const rectA = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rectA.setAttribute('x', M.l); rectA.setAttribute('y', y); rectA.setAttribute('width', 0); rectA.setAttribute('height', 20); rectA.setAttribute('rx', 6); rectA.setAttribute('class','barA');
+    gBars.appendChild(rectA); requestAnimationFrame(()=>{ rectA.setAttribute('width', wA); });
+
+    const labelA = document.createElementNS('http://www.w3.org/2000/svg','text');
+    labelA.setAttribute('x', M.l + wA + 6); labelA.setAttribute('y', y+14); labelA.setAttribute('class','label'); labelA.textContent = formatVal(d.a, metric);
+    gLabels.appendChild(labelA);
+
+    if(rowsB){ // draw B
+      const wB = scale(d.b);
+      const rectB = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rectB.setAttribute('x', M.l); rectB.setAttribute('y', y+22); rectB.setAttribute('width', 0); rectB.setAttribute('height', 12); rectB.setAttribute('rx', 6); rectB.setAttribute('class','barB');
+      gBars.appendChild(rectB); requestAnimationFrame(()=>{ rectB.setAttribute('width', wB); });
+
+      const delta = d.a - d.b;
+      const labelB = document.createElementNS('http://www.w3.org/2000/svg','text');
+      labelB.setAttribute('x', M.l + Math.max(wA,wB) + 6); labelB.setAttribute('y', y+30); labelB.setAttribute('class','label'); labelB.textContent = (delta>=0?'+':'') + shortDelta(delta, metric);
+      gLabels.appendChild(labelB);
+    }
+  });
+}
+
+function formatVal(v, metric){
+  if(metric==='EstRevenue' || metric==='Price') return fmt.fullEur(Math.round(v));
+  if(metric==='AvgPlaytime') return Math.round(v)+" h";
+  return fmt.num(Math.round(v));
+}
+function shortDelta(v, metric){
+  if(metric==='EstRevenue' || metric==='Price') return '€'+(Math.round(v/1e3))+'k';
+  if(metric==='AvgPlaytime') return Math.round(v)+'h';
+  return (Math.abs(v)>=1e6? (v/1e6).toFixed(1)+'m' : Math.abs(v)>=1e3? Math.round(v/1e3)+'k' : Math.round(v).toString());
+}
+
+// ======== TOP GAMES TABLE ========
+const topTBody = document.querySelector('#topTable tbody');
+const footMeta = document.getElementById('footMeta');
+function renderTopGames(rows, metric){
+  const sorted = [...rows].sort((a,b)=>b[metric]-a[metric]).slice(0,6);
+  topTBody.innerHTML='';
+  for(const r of sorted){
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${r.Name}</td><td>${r.Genre}</td><td>${r.Publisher}</td><td class="num">${formatVal(r[metric], metric)}</td>`;
+    topTBody.appendChild(tr);
+  }
+  const medRev = median(rows.map(r=>r.EstRevenue));
+  footMeta.textContent = `Median revenue per game: ${fmt.fullEur(medRev)} · Games this quarter: ${rows.length}`;
+}
+
+// ======== KPI ROW ========
+const kpiRow = document.getElementById('kpiRow');
+function renderKPI(rowsA, rowsB, metric, qA, qB){
+  const sumA = sum(rowsA, metric);
+  kpiRow.innerHTML='';
+  const pillA = document.createElement('span'); pillA.className='pill'; pillA.textContent = `A (${qA}) total ${labelOf(metric)}: ${formatVal(sumA, metric)}`; kpiRow.appendChild(pillA);
+  if(rowsB){ const sumB = sum(rowsB, metric); const d=sumA-sumB; const p=document.createElement('span'); p.className='pill'; p.style.color=d>=0?'var(--pos)':'var(--neg)'; p.textContent = `${d>=0?'▲':'▼'} Δ vs B (${qB}): ${shortDelta(d, metric)}`; kpiRow.appendChild(p); }
+}
+function labelOf(metric){
+  return { EstRevenue:'revenue', EstUnits:'units', Followers:'followers', Reviews:'reviews', AvgPlaytime:'avg. playtime', Price:'price' }[metric]||metric;
+}
+
+// ======== ACCESSIBLE DATA TABLE ========
+const tableWrap = document.getElementById('dataTableWrap');
+const accBody = document.querySelector('#accessibleTable tbody');
+const btnToggleTable = document.getElementById('btnToggleTable');
+btnToggleTable.addEventListener('click',()=>{
+  const open = tableWrap.classList.contains('visually-hidden') === false;
+  if(open){ tableWrap.classList.add('visually-hidden'); tableWrap.setAttribute('aria-hidden','true'); btnToggleTable.setAttribute('aria-expanded','false'); btnToggleTable.textContent='Show data table'; }
+  else{ tableWrap.classList.remove('visually-hidden'); tableWrap.setAttribute('aria-hidden','false'); btnToggleTable.setAttribute('aria-expanded','true'); btnToggleTable.textContent='Hide data table'; }
+});
+function renderAccessibleTable(rowsA, rowsB, metric, group){
+  const groupedA = [...groupBy(rowsA, group)].map(([k,v])=>({key:k, a:sum(v, metric)}));
+  const mapB = new Map(rowsB? [...groupBy(rowsB, group)].map(([k,v])=>[k,sum(v, metric)]) : []);
+  const merged = groupedA.map(d=>({key:d.key, a:d.a, b: mapB.get(d.key)||0, dlt: (rowsB? d.a-(mapB.get(d.key)||0): 0)}))
+    .sort((x,y)=>y.a-x.a).slice(0,7);
+  accBody.innerHTML='';
+  for(const r of merged){
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${r.key}</td><td class="num">${formatVal(r.a, metric)}</td><td class="num">${rowsB?formatVal(r.b, metric):'-'}</td><td class="num">${rowsB?(r.dlt>=0?'+':'')+shortDelta(r.dlt,metric):'-'}</td>`;
+    accBody.appendChild(tr);
+  }
+}
+
+// ======== COLOR VISION SIM ========
+function applyCVD(){
+  const map={none:'none',prot:'url(#cvd-prot)',deut:'url(#cvd-deut)',trit:'url(#cvd-trit)'}; svg.style.filter = map[cvd]||'none';
+}
+
+// ======== RADIO HELPERS (ARIA) ========
+function setChecked(groupEl, activeBtn){
+  groupEl.querySelectorAll('button[role="radio"]').forEach(b=>b.setAttribute('aria-checked', String(b===activeBtn)));
+}
+function arrowRadio(e, groupEl){
+  const keys=['ArrowLeft','ArrowUp','ArrowRight','ArrowDown']; if(!keys.includes(e.key)) return; e.preventDefault();
+  const items=[...groupEl.querySelectorAll('button[role="radio"]')]; const i=items.findIndex(b=>b.getAttribute('aria-checked')==='true');
+  const dir=(e.key==='ArrowLeft'||e.key==='ArrowUp')?-1:1; let j=(i+dir+items.length)%items.length; items[j].focus(); items[j].click();
+}
+
+// ======== EXPORT ========
+const btnSVG=document.getElementById('btnExportSVG');
+const btnPNG=document.getElementById('btnExportPNG');
+btnSVG.addEventListener('click',()=>{ const serializer=new XMLSerializer(); const src='<?xml version="1.0" standalone="no"?>\n'+serializer.serializeToString(svg); const blob=new Blob([src],{type:'image/svg+xml;charset=utf-8'}); downloadBlob(blob, `vgi_chart_${Date.now()}.svg`); });
+btnPNG.addEventListener('click',()=>{
+  const serializer=new XMLSerializer(); const src=serializer.serializeToString(svg); const img=new Image(); const svg64=btoa(unescape(encodeURIComponent(src))); img.onload=()=>{
+    const canvas=document.createElement('canvas'); canvas.width=svg.viewBox.baseVal.width; canvas.height=svg.viewBox.baseVal.height; const ctx=canvas.getContext('2d'); ctx.fillStyle='#0b0f14'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); canvas.toBlob(b=>downloadBlob(b,`vgi_chart_${Date.now()}.png`)); };
+  img.src='data:image/svg+xml;base64,'+svg64; });
+function downloadBlob(blob, filename){ const a=document.createElement('a'); const url=URL.createObjectURL(blob); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0); }
+
+// ======== UPDATE ========
+function update(){
+  const metric = metricSel.value; const group = groupSel.value;
+  let rowsA, rowsB, labelA, labelB;
+  if(mode==='single'){
+    document.getElementById('qAB').style.display='none'; qSegSingle.style.display='inline-flex';
+    [...qSegSingle.children].forEach((b,i)=>b.setAttribute('aria-checked', String(i===qIndex)));
+    const q = QTRS[qIndex]; rowsA = DATA[q]; rowsB = null; labelA=q; labelB=null;
+  }else{
+    document.getElementById('qAB').style.display='flex'; qSegSingle.style.display='none';
+    rowsA = DATA[qA.value]; rowsB = DATA[qB.value]; labelA=qA.value; labelB=qB.value;
+  }
+  renderChart(rowsA, rowsB, metric, group);
+  renderTopGames(rowsA, metric);
+  renderKPI(rowsA, rowsB, metric, labelA, labelB);
+  renderAccessibleTable(rowsA, rowsB, metric, group);
+}
+
+// Build single‑quarter radio buttons and keyboard nav
+(function initSingleQ(){
+  qSegSingle.setAttribute('aria-label','Select quarter');
+  QTRS.forEach((q,i)=>{ const b=qSegSingle.children[i]; b.addEventListener('keydown',(e)=>arrowRadio(e,qSegSingle)); });
+})();
+
+// Initial apply
+applyCVD();
+update();
+</script>
+</body>
+</html>
